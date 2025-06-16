@@ -8,82 +8,85 @@ use ReflectionClass;
 abstract class GenericEntity
 {
     protected ?int $id = null;
-
     private static PDO $pdo;
 
-    /**
-     * @return array<static>
-     */
     public static function findAll(): array
     {
-        $table = static::getTableName();
-        $statement = self::$pdo->query("SELECT * FROM `$table` ORDER BY id DESC");
-        return $statement->fetchAll(PDO::FETCH_CLASS, static::class);
+        $t    = static::getTableName();
+        $stmt = self::getPdo()->query("SELECT * FROM `{$t}` ORDER BY id DESC");
+        return $stmt->fetchAll(PDO::FETCH_CLASS, static::class);
     }
 
     public static function findById(int $id): ?static
     {
-        $table = static::getTableName();
-        $statement = self::$pdo->prepare("SELECT * FROM `$table` WHERE id = :id");
-        $statement->execute([':id' => $id]);
-        $statement->setFetchMode(PDO::FETCH_CLASS, static::class);
-        return $statement->fetch() ?: null;
+        $t    = static::getTableName();
+        $stmt = self::getPdo()->prepare("SELECT * FROM `{$t}` WHERE id = :id");
+        $stmt->execute([':id' => $id]);
+        $stmt->setFetchMode(PDO::FETCH_CLASS, static::class);
+        return $stmt->fetch() ?: null;
     }
 
     public function save(): bool
     {
-        $table = static::getTableName();
+        $t   = static::getTableName();
+        $ref = new ReflectionClass($this);
+        $props = [];
 
-        // Отримуємо всі властивості, перетворюючи їх у snake_case
-        //$properties = get_object_vars($this);
-
-        // Тут отримуємо навіть з приватних полів, хоча в Eloquent вони публічні
-        $reflection = new ReflectionClass($this);
-
-        $properties = [];
-        foreach ($reflection->getProperties() as $property) {
-            // Пропускаємо поле id та статичні властивості
-            if ($property->getName() !== 'id' && !$property->isStatic()) {
-                $property->setAccessible(true);
-                $properties[$property->getName()] = $property->getValue($this);
+        foreach ($ref->getProperties() as $p) {
+            if ($p->isStatic() || $p->getName() === 'id') {
+                continue;
             }
+            $p->setAccessible(true);
+            $val = $p->getValue($this);
+            if ($val === null || $val === '') {
+                continue;
+            }
+            $props[$p->getName()] = $val;
         }
+
+        echo "DEBUG PARAMS: ";
+        var_export($props);
+        echo "\n";
 
         if ($this->id === null) {
-            // Вставка нового запису
-            $columns = implode(', ', array_keys($properties));
-            $placeholders = implode(', ', array_map(fn($col) => ":$col", array_keys($properties)));
-            $sql = "INSERT INTO `$table` ($columns) VALUES ($placeholders)";
+            $cols    = implode(', ', array_keys($props));
+            $holders = implode(', ', array_map(fn($c) => ":{$c}", array_keys($props)));
+            $sql     = "INSERT INTO `{$t}` ({$cols}) VALUES ({$holders})";
 
-            $stmt = self::$pdo->prepare($sql);
-            $success = $stmt->execute($properties);
-            if ($success) {
-                $this->id = (int) self::$pdo->lastInsertId();
+            echo "DEBUG SQL: {$sql}\n";
+
+            $stmt = self::getPdo()->prepare($sql);
+            $ok   = $stmt->execute($props);
+            if ($ok) {
+                $this->id = (int) self::getPdo()->lastInsertId();
             }
-            return $success;
-        } else {
-            // Оновлення існуючого запису
-            $setClause = implode(', ', array_map(fn($col) => "$col = :$col", array_keys($properties)));
-            $sql = "UPDATE `$table` SET $setClause WHERE id = :id";
-
-            $stmt = self::$pdo->prepare($sql);
-            $properties['id'] = $this->id;
-            return $stmt->execute($properties);
+            return $ok;
         }
+
+        $set     = implode(', ', array_map(fn($c) => "{$c} = :{$c}", array_keys($props)));
+        $sql     = "UPDATE `{$t}` SET {$set} WHERE id = :id";
+        $props['id'] = $this->id;
+
+        echo "DEBUG SQL: {$sql}\n";
+        echo "DEBUG PARAMS: ";
+        var_export($props);
+        echo "\n";
+
+        $stmt = self::getPdo()->prepare($sql);
+        return $stmt->execute($props);
     }
 
     public function delete(): bool
     {
         if ($this->id === null) {
-            return false; // Якщо немає ID, значить запису ще немає в БД
+            return false;
         }
-
-        $table = static::getTableName();
-        $stmt = self::$pdo->prepare("DELETE FROM `$table` WHERE id = :id");
+        $t    = static::getTableName();
+        $stmt = self::getPdo()->prepare("DELETE FROM `{$t}` WHERE id = :id");
         return $stmt->execute([':id' => $this->id]);
     }
 
-    public function getId(): int
+    public function getId(): ?int
     {
         return $this->id;
     }
@@ -93,13 +96,13 @@ abstract class GenericEntity
         $this->id = $id;
     }
 
-    public static function getPdo() {
-        self::$pdo = ConnectionManager::getConnection();
+    public static function getPdo(): PDO
+    {
+        if (!isset(self::$pdo)) {
+            self::$pdo = ConnectionManager::getConnection();
+        }
         return self::$pdo;
     }
 
     abstract protected static function getTableName(): string;
 }
-
-// TODO: придумати спосіб, елегатніший ініціалізації обєкта PDO
-GenericEntity::getPdo();

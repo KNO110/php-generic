@@ -1,69 +1,67 @@
 <?php
-
 namespace Insid\Acdemo\Persistence\Entities;
 
 use Insid\Acdemo\Persistence\Utils\GenericEntity;
+use PDO;
 
 class Article extends GenericEntity
 {
+    private int $user_id;
     private string $title;
     private string $content;
-    private ?string $image = null;
-    private string $created_at = '';
-    private ?string $updated_at = null;
 
     protected static function getTableName(): string
     {
         return 'articles';
     }
 
-    public function getTitle(): string
+
+    public function setUserId(int $u): void  { $this->user_id = $u; }
+    public function getUserId(): int         { return $this->user_id; }
+
+    public function setTitle(string $t): void  { $this->title = $t; }
+    public function getTitle(): string         { return $this->title; }
+
+    public function setContent(string $c): void{ $this->content = $c; }
+    public function getContent(): string       { return $this->content; }
+
+
+    public function toArray(): array
     {
-        return $this->title;
+        return [
+            'user_id' => $this->getUserId(),
+            'title'   => $this->getTitle(),
+            'content' => $this->getContent(),
+        ];
     }
 
-    public function setTitle(string $title): void
+
+    public function getUser(): ?User
     {
-        $this->title = $title;
+        return User::findById($this->getUserId());
     }
 
-    public function getContent(): string
+    public function getComments(): array
     {
-        return $this->content;
+        return Comment::findAllBy(['article_id' => $this->getId()]);
     }
 
-    public function setContent(string $content): void
+    public function getTags(): array
     {
-        $this->content = $content;
+        $pdo = self::getPdo();
+        $stmt = $pdo->prepare("SELECT tag_id FROM article_tag WHERE article_id = :aid");
+        $stmt->execute(['aid' => $this->getId()]);
+        $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        return array_map(fn($i) => Tag::findById((int)$i), $ids);
     }
 
-    public function getImage(): ?string
+    public static function findAllBy(array $conds): array
     {
-        return $this->image;
-    }
-
-    public function setImage(?string $image): void
-    {
-        $this->image = $image;
-    }
-
-    public function getCreatedAt(): string
-    {
-        return $this->created_at;
-    }
-
-    public function setCreatedAt(string $created_at): void
-    {
-        $this->created_at = $created_at;
-    }
-
-    public function getUpdatedAt(): ?string
-    {
-        return $this->updated_at;
-    }
-
-    public function setUpdatedAt(?string $updated_at): void
-    {
-        $this->updated_at = $updated_at;
+        $t = static::getTableName();
+        $cl = implode(' AND ', array_map(fn($k) => "`{$k}` = :{$k}", array_keys($conds)));
+        $sql = "SELECT * FROM `{$t}` WHERE {$cl} ORDER BY id DESC";
+        $stmt = self::getPdo()->prepare($sql);
+        $stmt->execute($conds);
+        return $stmt->fetchAll(PDO::FETCH_CLASS, static::class);
     }
 }

@@ -1,5 +1,4 @@
 <?php
-
 namespace Insid\Acdemo\Persistence\Entities;
 
 use Insid\Acdemo\Persistence\Utils\GenericEntity;
@@ -7,52 +6,41 @@ use Insid\Acdemo\Persistence\Utils\GenericEntity;
 class Comment extends GenericEntity
 {
     private int $article_id;
+    private int $user_id;
     private string $content;
-    private string $created_at = '';
-    private ?string $updated_at = null;
 
     protected static function getTableName(): string
     {
         return 'comments';
     }
 
-    public function getArticleId(): int
+
+    public function setArticleId(int $a): void { $this->article_id = $a; }
+    public function getArticleId(): int         { return $this->article_id; }
+
+    public function setUserId(int $u): void    { $this->user_id = $u; }
+    public function getUserId(): int           { return $this->user_id; }
+
+    public function setContent(string $c): void{ $this->content = $c; }
+    public function getContent(): string       { return $this->content; }
+
+    public function toArray(): array
     {
-        return $this->article_id;
+        return [
+            'article_id' => $this->getArticleId(),
+            'user_id'    => $this->getUserId(),
+            'content'    => $this->getContent(),
+        ];
     }
 
-    public function setArticleId(int $article_id): void
+
+    public function getUser(): ?User
     {
-        $this->article_id = $article_id;
+        return User::findById($this->getUserId());
     }
 
-    public function getContent(): string
+    public function getArticle(): ?Article
     {
-        return $this->content;
-    }
-
-    public function setContent(string $content): void
-    {
-        $this->content = $content;
-    }
-
-    public function getCreatedAt(): string
-    {
-        return $this->created_at;
-    }
-
-    public function setCreatedAt(string $created_at): void
-    {
-        $this->created_at = $created_at;
-    }
-
-    public function getUpdatedAt(): ?string
-    {
-        return $this->updated_at;
-    }
-
-    public function setUpdatedAt(?string $updated_at): void
-    {
-        $this->updated_at = $updated_at;
+        return Article::findById($this->getArticleId());
     }
 }

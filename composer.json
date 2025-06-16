@@ -3,20 +3,20 @@
     "description": "Active Record Demo Project MySQL",
     "type": "project",
     "license": "MIT",
-    "autoload": {
-        "psr-4": {
-            "Insid\\Acdemo\\": "src/"
-        }
-    },
     "authors": [
         {
             "name": "arakviel",
             "email": "insider.arakviel@gmail.com"
         }
     ],
-    "minimum-stability": "stable",
     "require": {
         "php": ">=8.3",
         "ext-pdo": "*"
-    }
+    },
+    "minimum-stability": "stable",
+    "autoload": {
+		  "psr-4": {
+			"Insid\\Acdemo\\Persistence\\": "src/Persistence/"
+		  }
+		}
 }
